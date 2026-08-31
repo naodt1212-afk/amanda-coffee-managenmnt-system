@@ -1,0 +1,239 @@
+// Amanda Coffee Cafe Management System - Database Schema
+// Designed to strictly match the frontend's data requirements (src/types.ts)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============ ENUMS ============
+
+enum Role {
+  admin
+  manager
+  cashier
+  waiter
+  kitchen
+}
+
+enum Category {
+  Coffee
+  Tea
+  Juice
+  Food
+  Soft_Drinks
+}
+
+enum OrderStatus {
+  pending
+  preparing
+  ready
+  served
+  completed
+  cancelled
+}
+
+enum PaymentStatus {
+  unpaid
+  paid
+}
+
+enum PaymentMethod {
+  cash
+  telebirr
+  other
+}
+
+enum TableStatus {
+  available
+  occupied
+}
+
+enum InventoryStatus {
+  in_stock
+  low_stock
+  critical
+  out_of_stock
+}
+
+enum StockMovementType {
+  in
+  out
+  adjust
+}
+
+enum OrderSource {
+  customer
+  staff
+}
+
+enum NotificationType {
+  new_order
+  order_ready
+  low_stock
+  payment_confirmation
+  important_admin_notification
+}
+
+// ============ MODELS ============
+
+// Staff user account
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  role         Role
+  passwordHash String
+  avatar       String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([role])
+}
+
+// Menu product / recipe
+model MenuItem {
+  id              String   @id @default(cuid())
+  name            String
+  description     String   @default("")
+  price           Decimal  @db.Decimal(10, 2)
+  category        Category
+  image           String   @default("")
+  availability    Boolean  @default(true)
+  preparationTime Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  orderItems OrderItem[]
+
+  @@index([category])
+  @@index([availability])
+}
+
+// Physical dining table
+model DiningTable {
+  id             String      @id @default(cuid())
+  number         String      @unique
+  status         TableStatus @default(available)
+  currentOrderId String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  orders Order[]
+
+  @@index([status])
+}
+
+// Customer / staff order
+model Order {
+  id            String        @id @default(cuid())
+  tableId       String
+  tableNumber   String
+  subtotal      Decimal       @db.Decimal(10, 2)
+  discount      Decimal       @default(0) @db.Decimal(10, 2)
+  total         Decimal       @db.Decimal(10, 2)
+  status        OrderStatus   @default(pending)
+  paymentStatus PaymentStatus @default(unpaid)
+  paymentMethod PaymentMethod?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  orderSource   OrderSource
+  customerName  String?
+
+  items OrderItem[]
+  table DiningTable @relation(fields: [tableId], references: [id], onDelete: Restrict)
+
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([tableId])
+  @@index([createdAt])
+}
+
+// Line item of an order (snapshots name & price at order time)
+model OrderItem {
+  id                  String    @id @default(cuid())
+  orderId             String
+  menuItemId          String?
+  itemName            String
+  itemPrice           Decimal   @db.Decimal(10, 2)
+  quantity            Int
+  specialInstructions String?
+
+  order    Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+}
+
+// Raw material inventory item
+model InventoryItem {
+  id           String          @id @default(cuid())
+  name         String
+  currentStock Float
+  unit         String
+  minStock     Float
+  status       InventoryStatus
+  lastUpdated  DateTime        @default(now())
+
+  movements StockMovement[]
+
+  @@index([status])
+}
+
+// Stock movement log entry
+model StockMovement {
+  id        String            @id @default(cuid())
+  itemId    String
+  itemName  String
+  type      StockMovementType
+  quantity  Float
+  note      String
+  timestamp DateTime          @default(now())
+
+  item InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@index([timestamp])
+}
+
+// Business expense record
+model Expense {
+  id          String   @id @default(cuid())
+  category    String
+  amount      Decimal  @db.Decimal(10, 2)
+  description String
+  date        DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([date])
+}
+
+// System notification
+model Notification {
+  id        String           @id @default(cuid())
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+// Café configuration settings (settings page)
+model CafeSettings {
+  id              Int      @id @default(1)
+  shopName        String   @default("AMANDA COFFEE")
+  address         String   @default("Bole Road, Addis Ababa, Ethiopia")
+  tablesCount     Int      @default(8)
+  taxPercent      Float    @default(15)
+  servicePercent  Float    @default(5)
+  autoPrintReceipt Boolean @default(false)
+  updatedAt       DateTime @updatedAt
+}
