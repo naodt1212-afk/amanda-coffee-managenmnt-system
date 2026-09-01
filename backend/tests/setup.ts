@@ -95,31 +95,32 @@ export const seedTestData = async (): Promise<void> => {
 
   await prisma.diningTable.createMany({
     data: Array.from({ length: 4 }, (_, i) => ({
-      number: i + 1,
-      capacity: 4,
+      number: String(i + 1),
       status: 'available' as const,
     })),
   });
 
   await prisma.inventoryItem.createMany({
     data: [
-      { name: 'Coffee Beans', quantity: 50, minStock: 10, category: 'Coffee', unit: 'kg' },
-      { name: 'Milk', quantity: 20, minStock: 5, category: 'Beverage', unit: 'L' },
+      { name: 'Coffee Beans', currentStock: 50, minStock: 10, unit: 'kg', status: 'in_stock' },
+      { name: 'Milk', currentStock: 20, minStock: 5, unit: 'L', status: 'in_stock' },
     ],
   });
 };
 
-// Login helper returning a Bearer token for a given role.
+// Login helper returning a Bearer token for a given role using the supplied app.
 export const loginAs = async (
+  app: RequestHandlerApp,
   role: 'admin' | 'manager' | 'cashier' | 'waiter' | 'kitchen'
 ): Promise<string> => {
-  const app = (await import('../src/app')).default;
   const request = (await import('supertest')).default;
   const res = await request(app)
     .post('/api/auth/login')
     .send({ email: `${role}@amanda.com`, password: '12345678' });
   return res.body?.data?.token as string;
 };
+
+type RequestHandlerApp = import('express').Application;
 
 export const authHeader = (token: string): Record<string, string> => ({
   Authorization: `Bearer ${token}`,
